@@ -8,157 +8,23 @@ import Button from "@material-ui/core/Button";
 import IconButton from "@material-ui/core/IconButton";
 import MenuIcon from "@material-ui/icons/Menu";
 import Drawer from "@material-ui/core/Drawer";
-import { Link } from "react-router-dom";
-import { auth } from "./firebase";
-
-export function SignIn(props) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(u => {
-      if (u) {
-        props.history.push("/app");
-      }
-    });
-
-    return unsubscribe;
-  }, [props.history]);
-
-  const handleSignIn = () => {
-    auth
-      .signInWithEmailAndPassword(email, password)
-      .then(() => {})
-      .catch(error => {
-        alert(error.message);
-      });
-  };
-
-  return (
-    <div>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography color="inherit" variant="h6">
-            Sign In
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <Paper style={{ width: "400px", marginTop: 30, padding: "40px" }}>
-          <TextField
-            fullWidth={true}
-            placeholder="email"
-            value={email}
-            onChange={e => {
-              setEmail(e.target.value);
-            }}
-          />
-          <TextField
-            value={password}
-            onChange={e => {
-              setPassword(e.target.value);
-            }}
-            fullWidth={true}
-            placeholder="password"
-            style={{ marginTop: 20 }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "30px",
-              alignItems: "center"
-            }}
-          >
-            <div>
-              Don't have an account? <Link to="/signup">Sign up!</Link>
-            </div>
-            <Button onClick={handleSignIn} color="primary" variant="contained">
-              Sign In
-            </Button>
-          </div>
-        </Paper>
-      </div>
-    </div>
-  );
-}
-
-export function SignUp(props) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(u => {
-      if (u) {
-        props.history.push("/app");
-      }
-    });
-
-    return unsubscribe;
-  }, [props.history]);
-
-  const handleSignUp = () => {
-    auth
-      .createUserWithEmailAndPassword(email, password)
-      .then(() => {})
-      .catch(error => {
-        alert(error.message);
-      });
-  };
-
-  return (
-    <div>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography color="inherit" variant="h6">
-            Sign Up
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <Paper style={{ width: "400px", marginTop: 30, padding: "40px" }}>
-          <TextField
-            fullWidth={true}
-            placeholder="email"
-            value={email}
-            onChange={e => {
-              setEmail(e.target.value);
-            }}
-          />
-          <TextField
-            value={password}
-            type={"password"}
-            onChange={e => {
-              setPassword(e.target.value);
-            }}
-            fullWidth={true}
-            placeholder="password"
-            style={{ marginTop: 20 }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "30px",
-              alignItems: "center"
-            }}
-          >
-            <div>
-              Already have an account? <Link to="/">Sign In!</Link>
-            </div>
-            <Button onClick={handleSignUp} color="primary" variant="contained">
-              Sign Up
-            </Button>
-          </div>
-        </Paper>
-      </div>
-    </div>
-  );
-}
+import { Link, Route } from "react-router-dom";
+import { auth, db, snapshotToArray } from "./firebase";
+import Photos from "./Photos";
+import AddAlbum from "./AddAlbum";
+import List from "@material-ui/core/List";
+import ListItem from "@material-ui/core/ListItem";
+import ListItemIcon from "@material-ui/core/ListItemIcon";
+import ListItemText from "@material-ui/core/ListItemText";
 
 export function App(props) {
   const [drawer_open, setDrawerOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [dialog_open, setDialogOpen] = useState(false);
+  const [albums, setAlbums] = useState([
+    { id: 0, title: "nature" },
+    { id: 1, title: "cities" }
+  ]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(u => {
@@ -171,6 +37,18 @@ export function App(props) {
 
     return unsubscribe;
   }, [props.history]);
+
+  useEffect(() => {
+    if (user) {
+      db.collection("users")
+        .doc(user.uid)
+        .collection("albums")
+        .onSnapshot(snapshot => {
+          const updated_albums = snapshotToArray(snapshot);
+          setAlbums(updated_albums);
+        });
+    }
+  }, [user]);
 
   const handleSignOut = () => {
     auth
@@ -221,8 +99,44 @@ export function App(props) {
           setDrawerOpen(false);
         }}
       >
-        I'm a drawer
+        <List component="nav">
+          {albums.map(a => {
+            return (
+              <ListItem
+                button
+                to={"/app/album/" + a.id + "/"}
+                component={Link}
+                onClick={() => {
+                  setDrawerOpen(false);
+                }}
+              >
+                <ListItemText primary={a.name} />
+              </ListItem>
+            );
+          })}
+          <ListItem
+            button
+            onClick={() => {
+              setDialogOpen(true);
+            }}
+          >
+            <ListItemText primary="Create New Album" />
+          </ListItem>
+        </List>
       </Drawer>
+      <AddAlbum
+        user={user}
+        open={dialog_open}
+        onClose={() => {
+          setDialogOpen(false);
+        }}
+      />
+      <Route
+        path="/app/album/:album_id/"
+        render={routeProps => {
+          return <Photos user={user} {...routeProps} />;
+        }}
+      />
     </div>
   );
 }
